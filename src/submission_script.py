@@ -206,12 +206,12 @@ def main(argv):
     lgbm_kfold  = train_and_run_cv(lgbm, X, y)
 
     #lgbm = do_grid_search(X, y)
-    pred_test_full = []
+    pred_test_full = 0
 
     for model in lgbm_kfold:
         pred_test_full += model.predict(df_test[feature_list])
 
-    pred = pred_test_full / len(lgbm_kfold)
+    pred = np.rint(pred_test_full / len(lgbm_kfold))
 
     df_test['lgbm_pred'] = pred
 
