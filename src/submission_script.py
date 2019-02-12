@@ -29,6 +29,7 @@ def import_data(pDATA_PATH):
     """
     TODO Kommentieren
     """
+    print('Entered import_data')
     df = pd.read_csv(pDATA_PATH + '/train/train.csv')
     train_id = df['PetID']
 
@@ -121,6 +122,7 @@ def import_data(pDATA_PATH):
 
 
 def feat_eng(df):
+    print('Entered feat_eng')
     descriptions = df.Description.fillna("no_desc").values
     vectorizer = TfidfVectorizer(strip_accents='unicode', analyzer='word', token_pattern=r'(?u)\b\w+\b', use_idf=True)
     X = vectorizer.fit_transform(list(descriptions))
@@ -155,10 +157,11 @@ def do_grid_search(lgbm, X, y):
 
 
 def train_and_run_cv(model, X, y, cv=3):
+    print('Entered train_and_run_cv')
     skf = StratifiedKFold(n_splits=3)
     i = 0
     cv_score = []
-    pred_test_full = 0
+    models_kfold = []
 
     for train_index, test_index in skf.split(X, y):
         i += 1
@@ -171,14 +174,11 @@ def train_and_run_cv(model, X, y, cv=3):
         score = squared_cohen_kappa(y_test, model_copy.predict(X_test))
         print("Score:", score)
         cv_score.append(score)
-        pred_test = model_copy.predict(X_test)
-        pred_test_full += pred_test
+        models_kfold.append(model_copy)
 
     print("Mean cv Score", np.mean(cv_score))
 
-    y_pred = pred_test_full / cv
-
-    return model_copy, pred_test_full
+    return models_kfold
 
 
 def main(argv):
@@ -203,11 +203,16 @@ def main(argv):
 
     lgbm = LGBMClassifier(objective='multiclass', random_state=5)
 
-    lgbm, pred  = train_and_run_cv(lgbm, X, y)
+    lgbm_kfold  = train_and_run_cv(lgbm, X, y)
 
     #lgbm = do_grid_search(X, y)
+    pred_test_full = []
 
-    #df_test['lgbm_pred'] = lgbm.predict(df_test[feature_list])
+    for model in lgbm_kfold:
+        pred_test_full += model.predict(df_test[feature_list])
+
+    pred = pred_test_full / len(lgbm_kfold)
+
     df_test['lgbm_pred'] = pred
 
     lgbm_kappa = squared_cohen_kappa(df_test['AdoptionSpeed'], df_test['lgbm_pred'])
@@ -215,9 +220,9 @@ def main(argv):
 
     df_test[['PetID', 'lgbm_pred']].to_csv('submission.csv', index=False, header=['PetID', 'AdoptionSpeed'])
 
-    feature_imp = pd.DataFrame(sorted(zip(lgbm.feature_importances_, X.columns)), columns=['Value', 'Feature'])
+    #feature_imp = pd.DataFrame(sorted(zip(lgbm.feature_importances_, X.columns)), columns=['Value', 'Feature'])
 
-    print(feature_imp)
+    #print(feature_imp)
 
 
 
