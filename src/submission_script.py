@@ -302,8 +302,9 @@ def main(argv):
 
     #df_test['lgbm_pred'] = lgbm.predict(df_test[feature_list])
     df_test['lgbm_pred'] = pred_ensemble(lgbm_list, df_test[feature_list])
+    df_test['lgbm_pred'] = np.round(df_test['lgbm_pred'], 0)
 
-    lgbm_kappa = quadratic_weighted_kappa(df_test['AdoptionSpeed'], np.round(df_test['lgbm_pred'], 0))
+    lgbm_kappa = quadratic_weighted_kappa(df_test['AdoptionSpeed'], df_test['lgbm_pred'])
     print('Model tested! Quadratic Weighted Kappa: ' + str(lgbm_kappa))
 
     df_test[['PetID', 'lgbm_pred']].to_csv('submission.csv', index=False, header=['PetID', 'AdoptionSpeed'])
