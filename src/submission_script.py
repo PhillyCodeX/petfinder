@@ -17,7 +17,6 @@ from lightgbm import LGBMClassifier
 
 pd.options.mode.chained_assignment = None  # default='warn'
 
-
 def squared_cohen_kappa(y1, y2):
     """
     TODO Kommentieren
@@ -123,10 +122,19 @@ def import_data(pDATA_PATH):
 
 def feat_eng(df):
     print('Entered feat_eng')
+
+    df = description_feat(df)
+
+    return df
+
+def description_feat(df):
+    print('------- Build Description features -------')
+    print('Vectorize Descriptions')
     descriptions = df.Description.fillna("no_desc").values
     vectorizer = TfidfVectorizer(strip_accents='unicode', analyzer='word', token_pattern=r'(?u)\b\w+\b', use_idf=True)
     X = vectorizer.fit_transform(list(descriptions))
 
+    print('SVD to reduce dimensionality')
     print('X:', X.shape)
     print(vectorizer.get_feature_names())
 
@@ -138,7 +146,6 @@ def feat_eng(df):
 
     X = pd.DataFrame(X, columns=['svd_{}'.format(i) for i in range(300)])
     df = pd.concat((df, X), axis=1)
-
     return df
 
 
