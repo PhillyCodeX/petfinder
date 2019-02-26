@@ -153,12 +153,19 @@ def do_grid_search(lgbm, X, y):
 
     return lgbm_cv
 
+def pred_ensemble(model_list, X):
+    pred_full = 0
+    for model in model_list:
+        pred = model.predict(X)
+        pred_full += pred
+
+    return pred_full / len(model_list)
 
 def train_and_run_cv(model, X, y, cv=3):
     skf = StratifiedKFold(n_splits=3)
     i = 0
     cv_score = []
-    pred_test_full = 0
+    model_list = []
 
     for train_index, test_index in skf.split(X, y):
         i += 1
@@ -171,14 +178,11 @@ def train_and_run_cv(model, X, y, cv=3):
         score = squared_cohen_kappa(y_test, model_copy.predict(X_test))
         print("Score:", score)
         cv_score.append(score)
-        pred_test = model_copy.predict(X_test)
-        pred_test_full += pred_test
+        model_list.append(model_copy)
 
     print("Mean cv Score", np.mean(cv_score))
 
-    y_pred = pred_test_full / cv
-
-    return model_copy, pred_test_full
+    return model_list
 
 
 def main(argv):
@@ -203,21 +207,21 @@ def main(argv):
 
     lgbm = LGBMClassifier(objective='multiclass', random_state=5)
 
-    lgbm, pred  = train_and_run_cv(lgbm, X, y)
+    lgbm_list  = train_and_run_cv(lgbm, X, y)
 
     #lgbm = do_grid_search(X, y)
 
     #df_test['lgbm_pred'] = lgbm.predict(df_test[feature_list])
-    df_test['lgbm_pred'] = pred
+    df_test['lgbm_pred'] = pred_ensemble(lgbm_list, df_test[feature_list])
 
-    lgbm_kappa = squared_cohen_kappa(df_test['AdoptionSpeed'], df_test['lgbm_pred'])
+    lgbm_kappa = squared_cohen_kappa(df_test['AdoptionSpeed'], np.round(df_test['lgbm_pred'],0))
     print('Model tested! Squared Cohen Kappa: ' + str(lgbm_kappa))
 
     df_test[['PetID', 'lgbm_pred']].to_csv('submission.csv', index=False, header=['PetID', 'AdoptionSpeed'])
 
-    feature_imp = pd.DataFrame(sorted(zip(lgbm.feature_importances_, X.columns)), columns=['Value', 'Feature'])
+    #feature_imp = pd.DataFrame(sorted(zip(lgbm.feature_importances_, X.columns)), columns=['Value', 'Feature'])
 
-    print(feature_imp)
+    #print(feature_imp)
 
 
 
