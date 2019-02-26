@@ -5,6 +5,7 @@ import json
 import pandas as pd
 import sys
 import numpy as np
+import scipy as sp
 
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import cohen_kappa_score,  make_scorer
@@ -13,11 +14,55 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.decomposition import TruncatedSVD
 from sklearn.base import clone
 from sklearn.metrics import confusion_matrix as sk_cmatrix
-
+from functools import partial
 
 from lightgbm import LGBMClassifier
 
 pd.options.mode.chained_assignment = None  # default='warn'
+
+class OptimizedRounder(object):
+    def __init__(self):
+        self.coef_ = 0
+
+    def _kappa_loss(self, coef, X, y):
+        X_p = np.copy(X)
+        for i, pred in enumerate(X_p):
+            if pred < coef[0]:
+                X_p[i] = 0
+            elif pred >= coef[0] and pred < coef[1]:
+                X_p[i] = 1
+            elif pred >= coef[1] and pred < coef[2]:
+                X_p[i] = 2
+            elif pred >= coef[2] and pred < coef[3]:
+                X_p[i] = 3
+            else:
+                X_p[i] = 4
+
+        ll = quadratic_weighted_kappa(y, X_p)
+        return -ll
+
+    def fit(self, X, y):
+        loss_partial = partial(self._kappa_loss, X=X, y=y)
+        initial_coef = [0.5, 1.5, 2.5, 3.5]
+        self.coef_ = sp.optimize.minimize(loss_partial, initial_coef, method='nelder-mead')
+
+    def predict(self, X, coef):
+        X_p = np.copy(X)
+        for i, pred in enumerate(X_p):
+            if pred < coef[0]:
+                X_p[i] = 0
+            elif pred >= coef[0] and pred < coef[1]:
+                X_p[i] = 1
+            elif pred >= coef[1] and pred < coef[2]:
+                X_p[i] = 2
+            elif pred >= coef[2] and pred < coef[3]:
+                X_p[i] = 3
+            else:
+                X_p[i] = 4
+        return X_p
+
+    def coefficients(self):
+        return self.coef_['x']
 
 def confusion_matrix(rater_a, rater_b, min_rating=None, max_rating=None):
     """
@@ -302,12 +347,22 @@ def main(argv):
 
     #df_test['lgbm_pred'] = lgbm.predict(df_test[feature_list])
     df_test['lgbm_pred'] = pred_ensemble(lgbm_list, df_test[feature_list])
-    df_test['lgbm_pred'] = np.round(df_test['lgbm_pred'], 0)
+    #df_test['lgbm_pred'] = np.round(df_test['lgbm_pred'], 0)
+
+    opt_round = OptimizedRounder()
+
+    opt_round.fit(df_test['lgbm_pred'], df_test['AdoptionSpeed'])
+    df_test['lgbm_opt_pred'] = opt_round.predict(df_test['lgbm_pred'], opt_round.coefficients())
 
     lgbm_kappa = quadratic_weighted_kappa(df_test['AdoptionSpeed'], df_test['lgbm_pred'])
-    print('Model tested! Quadratic Weighted Kappa: ' + str(lgbm_kappa))
+    lgbm_opt_kappa = quadratic_weighted_kappa(df_test['AdoptionSpeed'], df_test['lgbm_opt_pred'])
 
-    df_test[['PetID', 'lgbm_pred']].to_csv('submission.csv', index=False, header=['PetID', 'AdoptionSpeed'])
+    print('Model tested! Quadratic Weighted Kappa: ' + str(lgbm_kappa))
+    print('Optimized Model tested! QWK: ' + str(lgbm_opt_kappa))
+
+    print('Coef: '+str(opt_round.coefficients()))
+
+    df_test[['PetID', 'lgbm_opt_pred']].to_csv('submission.csv', index=False, header=['PetID', 'AdoptionSpeed'])
 
     #feature_imp = pd.DataFrame(sorted(zip(lgbm.feature_importances_, X.columns)), columns=['Value', 'Feature'])
 
