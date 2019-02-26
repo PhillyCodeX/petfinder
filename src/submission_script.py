@@ -12,31 +12,107 @@ from sklearn.model_selection import GridSearchCV, StratifiedKFold
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.decomposition import TruncatedSVD
 from sklearn.base import clone
+from sklearn.metrics import confusion_matrix as sk_cmatrix
+
 
 from lightgbm import LGBMClassifier
 
 pd.options.mode.chained_assignment = None  # default='warn'
 
-def squared_cohen_kappa(y1, y2):
+def confusion_matrix(rater_a, rater_b, min_rating=None, max_rating=None):
     """
-    TODO Kommentieren
+    Returns the confusion matrix between rater's ratings
     """
-    return cohen_kappa_score(y1,y2)**2
+    assert(len(rater_a) == len(rater_b))
+    if min_rating is None:
+        min_rating = min(rater_a + rater_b)
+    if max_rating is None:
+        max_rating = max(rater_a + rater_b)
+    num_ratings = int(max_rating - min_rating + 1)
+    conf_mat = [[0 for i in range(num_ratings)]
+                for j in range(num_ratings)]
+    for a, b in zip(rater_a, rater_b):
+        conf_mat[a - min_rating][b - min_rating] += 1
+    return conf_mat
+
+def histogram(ratings, min_rating=None, max_rating=None):
+    """
+    Returns the counts of each type of rating that a rater made
+    """
+    if min_rating is None:
+        min_rating = min(ratings)
+    if max_rating is None:
+        max_rating = max(ratings)
+    num_ratings = int(max_rating - min_rating + 1)
+    hist_ratings = [0 for x in range(num_ratings)]
+    for r in ratings:
+        hist_ratings[r - min_rating] += 1
+    return hist_ratings
+
+def quadratic_weighted_kappa(y, y_pred):
+    """
+       Calculates the quadratic weighted kappa
+       axquadratic_weighted_kappa calculates the quadratic weighted kappa
+       value, which is a measure of inter-rater agreement between two raters
+       that provide discrete numeric ratings.  Potential values range from -1
+       (representing complete disagreement) to 1 (representing complete
+       agreement).  A kappa value of 0 is expected if all agreement is due to
+       chance.
+       quadratic_weighted_kappa(rater_a, rater_b), where rater_a and rater_b
+       each correspond to a list of integer ratings.  These lists must have the
+       same length.
+       The ratings should be integers, and it is assumed that they contain
+       the complete range of possible ratings.
+       quadratic_weighted_kappa(X, min_rating, max_rating), where min_rating
+       is the minimum possible rating, and max_rating is the maximum possible
+       rating
+       """
+    rater_a = y
+    rater_b = y_pred
+    min_rating = None
+    max_rating = None
+    rater_a = np.array(rater_a, dtype=int)
+    rater_b = np.array(rater_b, dtype=int)
+    assert (len(rater_a) == len(rater_b))
+    if min_rating is None:
+        min_rating = min(min(rater_a), min(rater_b))
+    if max_rating is None:
+        max_rating = max(max(rater_a), max(rater_b))
+    conf_mat = confusion_matrix(rater_a, rater_b,
+                                min_rating, max_rating)
+    num_ratings = len(conf_mat)
+    num_scored_items = float(len(rater_a))
+
+    hist_rater_a = histogram(rater_a, min_rating, max_rating)
+    hist_rater_b = histogram(rater_b, min_rating, max_rating)
+
+    numerator = 0.0
+    denominator = 0.0
+
+    for i in range(num_ratings):
+        for j in range(num_ratings):
+            expected_count = (hist_rater_a[i] * hist_rater_b[j]
+                              / num_scored_items)
+            d = pow(i - j, 2.0) / pow(num_ratings - 1, 2.0)
+            numerator += d * conf_mat[i][j] / num_scored_items
+            denominator += d * expected_count / num_scored_items
+
+    return (1.0 - numerator / denominator)
 
 
-def import_data(pDATA_PATH):
-    """
-    TODO Kommentieren
+def import_data(p_data_path):
+    """Function to import the data and return a dataframe
+        :return df Dataframe containing the imported data
     """
     print('Entered import_data')
-    df = pd.read_csv(pDATA_PATH + '/train/train.csv')
+    df = pd.read_csv(p_data_path + '/train/train.csv')
     train_id = df['PetID']
 
     sentiment_mag = []
     sentiment_score = []
     for pet in train_id:
         try:
-            with open(pDATA_PATH + '/train_sentiment/' + pet + '.json', 'r', encoding='UTF-8') as f:
+            with open(p_data_path + '/train_sentiment/' + pet + '.json', 'r', encoding='UTF-8') as f:
                 sentiment = json.load(f)
                 # print(DATA_PATH+'/train_sentiment/' + pet + '.json')
             sentiment_mag.append(sentiment['documentSentiment']['magnitude'])
@@ -64,7 +140,7 @@ def import_data(pDATA_PATH):
 
     for pet in train_id:
         try:
-            with open(pDATA_PATH + '/train_metadata/' + pet + '-1.json', 'r', encoding='UTF-8') as f:
+            with open(p_data_path + '/train_metadata/' + pet + '-1.json', 'r', encoding='UTF-8') as f:
                 data = json.load(f)
             vertex_x = data['cropHintsAnnotation']['cropHints'][0]['boundingPoly']['vertices'][2]['x']
             vertex_xs.append(vertex_x)
@@ -127,6 +203,7 @@ def feat_eng(df):
 
     return df
 
+
 def description_feat(df):
     print('------- Build Description features -------')
     print('Vectorize Descriptions')
@@ -153,7 +230,7 @@ def do_grid_search(lgbm, X, y):
     grid = {'learning_rate': [0.1, 0.001, 0.003, 0.0005], 'max_bin': [100, 255, 400, 500],
             'num_iterations': [50, 100, 150, 200, 300, 500]}
 
-    kappa_scorer = make_scorer(squared_cohen_kappa)
+    kappa_scorer = make_scorer(quadratic_weighted_kappa)
     lgbm_cv = GridSearchCV(lgbm, grid, scoring=kappa_scorer, cv=3, verbose=10)
     lgbm_cv.fit(X, y)
 
@@ -162,6 +239,7 @@ def do_grid_search(lgbm, X, y):
 
     return lgbm_cv
 
+
 def pred_ensemble(model_list, X):
     pred_full = 0
     for model in model_list:
@@ -169,6 +247,7 @@ def pred_ensemble(model_list, X):
         pred_full += pred
 
     return pred_full / len(model_list)
+
 
 def train_and_run_cv(model, X, y, cv=3):
     print('Entered train_and_run_cv')
@@ -185,7 +264,7 @@ def train_and_run_cv(model, X, y, cv=3):
 
         model_copy = clone(model)
         model_copy.fit(X_train, y_train)
-        score = squared_cohen_kappa(y_test, model_copy.predict(X_test))
+        score = quadratic_weighted_kappa(y_test, model_copy.predict(X_test))
         print("Score:", score)
         cv_score.append(score)
         model_list.append(model_copy)
@@ -224,16 +303,14 @@ def main(argv):
     #df_test['lgbm_pred'] = lgbm.predict(df_test[feature_list])
     df_test['lgbm_pred'] = pred_ensemble(lgbm_list, df_test[feature_list])
 
-    lgbm_kappa = squared_cohen_kappa(df_test['AdoptionSpeed'], np.round(df_test['lgbm_pred'],0))
-    print('Model tested! Squared Cohen Kappa: ' + str(lgbm_kappa))
+    lgbm_kappa = quadratic_weighted_kappa(df_test['AdoptionSpeed'], np.round(df_test['lgbm_pred'], 0))
+    print('Model tested! Quadratic Weighted Kappa: ' + str(lgbm_kappa))
 
     df_test[['PetID', 'lgbm_pred']].to_csv('submission.csv', index=False, header=['PetID', 'AdoptionSpeed'])
 
     #feature_imp = pd.DataFrame(sorted(zip(lgbm.feature_importances_, X.columns)), columns=['Value', 'Feature'])
 
     #print(feature_imp)
-
-
 
 
 if __name__ == '__main__':
