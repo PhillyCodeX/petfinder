@@ -65,6 +65,7 @@ class OptimizedRounder(object):
     def coefficients(self):
         return self.coef_['x']
 
+
 def confusion_matrix(rater_a, rater_b, min_rating=None, max_rating=None):
     """
     Returns the confusion matrix between rater's ratings
@@ -81,6 +82,7 @@ def confusion_matrix(rater_a, rater_b, min_rating=None, max_rating=None):
         conf_mat[a - min_rating][b - min_rating] += 1
     return conf_mat
 
+
 def histogram(ratings, min_rating=None, max_rating=None):
     """
     Returns the counts of each type of rating that a rater made
@@ -94,6 +96,7 @@ def histogram(ratings, min_rating=None, max_rating=None):
     for r in ratings:
         hist_ratings[r - min_rating] += 1
     return hist_ratings
+
 
 def quadratic_weighted_kappa(y, y_pred):
     """
@@ -304,22 +307,25 @@ def train_and_run_cv(model, X, y, cv=3):
 
     for train_index, test_index in skf.split(X, y):
         i += 1
-        print("training fold {} of {}".format(i, cv))
+        print("-------------- training fold {} of {} --------------".format(i, cv))
         X_train, X_test = np.array(X)[train_index, :], np.array(X)[test_index, :]
         y_train, y_test = np.array(y)[train_index], np.array(y)[test_index]
 
         model_copy = clone(model)
         model_copy.fit(X_train, y_train)
         score = quadratic_weighted_kappa(y_test, model_copy.predict(X_test))
-        print("Score:", score)
+        print("Model {} Score: ".format(score))
         cv_score.append(score)
         model_list.append(model_copy)
         print("------- Feature_Importance of model {} -------".format(i))
-        print(model_copy.feature_importances_)
-        print(X.columns)
+        # print(model_copy.feature_importances_)
+        # print(X.columns)
 
-        feature_importances.append({i, zip(model_copy.feature_importances_, X.columns)})
+        df_import = pd.DataFrame(sorted(list(zip(model_copy.feature_importances_, X.columns)), reverse=True), columns=['Value','Feature'])
 
+        print(df_import.head(15))
+
+    print("------- Ensemble metrics ------- ")
     print("Mean cv Score", np.mean(cv_score))
 
     return model_list, feature_importances
@@ -363,16 +369,12 @@ def main(argv):
     lgbm_kappa = quadratic_weighted_kappa(df_test['AdoptionSpeed'], df_test['lgbm_pred'])
     lgbm_opt_kappa = quadratic_weighted_kappa(df_test['AdoptionSpeed'], df_test['lgbm_opt_pred'])
 
+    print('------- Ensemble Model vs. Optimized Rounded Ensemble -------')
     print('Model tested! Quadratic Weighted Kappa: ' + str(lgbm_kappa))
     print('Optimized Model tested! QWK: ' + str(lgbm_opt_kappa))
-
-    print('Coef: '+str(opt_round.coefficients()))
+    print('Optimized Rounding Thresholds Coef: '+str(opt_round.coefficients()))
 
     df_test[['PetID', 'lgbm_opt_pred']].to_csv('submission.csv', index=False, header=['PetID', 'AdoptionSpeed'])
-
-    # feature_imp = pd.DataFrame(sorted(feature_importances), columns=['Value', 'Feature'])
-
-    print(list(feature_importances))
 
 
 if __name__ == '__main__':
