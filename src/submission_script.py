@@ -13,7 +13,7 @@ from sklearn.model_selection import GridSearchCV, StratifiedKFold
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.decomposition import TruncatedSVD
 from sklearn.base import clone
-from sklearn.metrics import confusion_matrix as sk_cmatrix
+
 from functools import partial
 
 from lightgbm import LGBMClassifier
@@ -111,7 +111,7 @@ def quadratic_weighted_kappa(y, y_pred):
        quadratic_weighted_kappa(X, min_rating, max_rating), where min_rating
        is the minimum possible rating, and max_rating is the maximum possible
        rating
-       """
+    """
     rater_a = y
     rater_b = y_pred
     min_rating = None
@@ -146,7 +146,8 @@ def quadratic_weighted_kappa(y, y_pred):
 
 
 def import_data(p_data_path):
-    """Function to import the data and return a dataframe
+    """
+        Function to import the data and return a dataframe
         :return df Dataframe containing the imported data
     """
     print('Entered import_data')
@@ -255,11 +256,9 @@ def description_feat(df):
     descriptions = df.Description.fillna("no_desc").values
     vectorizer = TfidfVectorizer(strip_accents='unicode', analyzer='word', token_pattern=r'(?u)\b\w+\b', use_idf=True)
     X = vectorizer.fit_transform(list(descriptions))
+    print('X:', X.shape)
 
     print('SVD to reduce dimensionality')
-    print('X:', X.shape)
-    print(vectorizer.get_feature_names())
-
     svd = TruncatedSVD(n_components=300)
     svd.fit(X)
     X = svd.transform(X)
@@ -296,10 +295,11 @@ def pred_ensemble(model_list, X):
 
 def train_and_run_cv(model, X, y, cv=3):
     print('Entered train_and_run_cv')
-    skf = StratifiedKFold(n_splits=3)
+    skf = StratifiedKFold(n_splits=cv)
     i = 0
     cv_score = []
     model_list = []
+    feature_importances = []
 
     for train_index, test_index in skf.split(X, y):
         i += 1
@@ -313,10 +313,11 @@ def train_and_run_cv(model, X, y, cv=3):
         print("Score:", score)
         cv_score.append(score)
         model_list.append(model_copy)
+        feature_importances.append({i, zip(model_copy.feature_importances_, X.columns)})
 
     print("Mean cv Score", np.mean(cv_score))
 
-    return model_list
+    return model_list, feature_importances
 
 
 def main(argv):
@@ -341,7 +342,7 @@ def main(argv):
 
     lgbm = LGBMClassifier(objective='multiclass', random_state=5)
 
-    lgbm_list  = train_and_run_cv(lgbm, X, y)
+    lgbm_list, feature_importances  = train_and_run_cv(lgbm, X, y, 5)
 
     #lgbm = do_grid_search(X, y)
 
@@ -364,9 +365,9 @@ def main(argv):
 
     df_test[['PetID', 'lgbm_opt_pred']].to_csv('submission.csv', index=False, header=['PetID', 'AdoptionSpeed'])
 
-    #feature_imp = pd.DataFrame(sorted(zip(lgbm.feature_importances_, X.columns)), columns=['Value', 'Feature'])
+    #feature_imp = pd.DataFrame(sorted(feature_importances), columns=['Value', 'Feature'])
 
-    #print(feature_imp)
+    print(list(feature_importances))
 
 
 if __name__ == '__main__':
