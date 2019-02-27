@@ -8,7 +8,7 @@ import numpy as np
 import scipy as sp
 
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import cohen_kappa_score,  make_scorer
+from sklearn.metrics import make_scorer
 from sklearn.model_selection import GridSearchCV, StratifiedKFold
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.decomposition import TruncatedSVD
@@ -19,6 +19,7 @@ from functools import partial
 from lightgbm import LGBMClassifier
 
 pd.options.mode.chained_assignment = None  # default='warn'
+
 
 class OptimizedRounder(object):
     def __init__(self):
@@ -142,7 +143,7 @@ def quadratic_weighted_kappa(y, y_pred):
             numerator += d * conf_mat[i][j] / num_scored_items
             denominator += d * expected_count / num_scored_items
 
-    return (1.0 - numerator / denominator)
+    return 1.0 - numerator / denominator
 
 
 def import_data(p_data_path):
@@ -313,6 +314,10 @@ def train_and_run_cv(model, X, y, cv=3):
         print("Score:", score)
         cv_score.append(score)
         model_list.append(model_copy)
+        print("------- Feature_Importance of model {} -------".format(i))
+        print(model_copy.feature_importances_)
+        print(X.columns)
+
         feature_importances.append({i, zip(model_copy.feature_importances_, X.columns)})
 
     print("Mean cv Score", np.mean(cv_score))
@@ -344,11 +349,11 @@ def main(argv):
 
     lgbm_list, feature_importances  = train_and_run_cv(lgbm, X, y, 5)
 
-    #lgbm = do_grid_search(X, y)
+    # lgbm = do_grid_search(X, y)
 
-    #df_test['lgbm_pred'] = lgbm.predict(df_test[feature_list])
+    # df_test['lgbm_pred'] = lgbm.predict(df_test[feature_list])
     df_test['lgbm_pred'] = pred_ensemble(lgbm_list, df_test[feature_list])
-    #df_test['lgbm_pred'] = np.round(df_test['lgbm_pred'], 0)
+    # df_test['lgbm_pred'] = np.round(df_test['lgbm_pred'], 0)
 
     opt_round = OptimizedRounder()
 
@@ -365,7 +370,7 @@ def main(argv):
 
     df_test[['PetID', 'lgbm_opt_pred']].to_csv('submission.csv', index=False, header=['PetID', 'AdoptionSpeed'])
 
-    #feature_imp = pd.DataFrame(sorted(feature_importances), columns=['Value', 'Feature'])
+    # feature_imp = pd.DataFrame(sorted(feature_importances), columns=['Value', 'Feature'])
 
     print(list(feature_importances))
 
