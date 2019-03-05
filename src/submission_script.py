@@ -149,20 +149,21 @@ def quadratic_weighted_kappa(y, y_pred):
     return 1.0 - numerator / denominator
 
 
-def import_data(p_data_path):
+def import_data(p_data_path, p_mode='train'):
     """
         Function to import the data and return a dataframe
         :return df Dataframe containing the imported data
     """
-    print('Entered import_data')
-    df = pd.read_csv(p_data_path + '/train/train.csv')
+    print('Entered import_data with mode '+p_mode)
+
+    df = pd.read_csv(p_data_path + '/'+p_mode+'/'+p_mode+'.csv')
     train_id = df['PetID']
 
     sentiment_mag = []
     sentiment_score = []
     for pet in train_id:
         try:
-            with open(p_data_path + '/train_sentiment/' + pet + '.json', 'r', encoding='UTF-8') as f:
+            with open(p_data_path + '/'+p_mode+'/'+p_mode+'_sentiment/' + pet + '.json', 'r', encoding='UTF-8') as f:
                 sentiment = json.load(f)
                 # print(DATA_PATH+'/train_sentiment/' + pet + '.json')
             sentiment_mag.append(sentiment['documentSentiment']['magnitude'])
@@ -190,7 +191,7 @@ def import_data(p_data_path):
 
     for pet in train_id:
         try:
-            with open(p_data_path + '/train_metadata/' + pet + '-1.json', 'r', encoding='UTF-8') as f:
+            with open(p_data_path + '/'+p_mode+'/'+p_mode+'_metadata/' + pet + '-1.json', 'r', encoding='UTF-8') as f:
                 data = json.load(f)
             vertex_x = data['cropHintsAnnotation']['cropHints'][0]['boundingPoly']['vertices'][2]['x']
             vertex_xs.append(vertex_x)
@@ -331,14 +332,17 @@ def train_and_run_cv(model, X, y, cv=3):
     return model_list, feature_importances
 
 
-def main(argv):
+def main(argv, mode='local'):
     """
     Diese Funktion ist der Einstiegspunkt für dieses Projekt
     """
 
-    DATA_PATH = argv[0]
+    if mode == 'local':
+        DATA_PATH = argv[0]
+    elif mode == 'kaggle':
+        DATA_PATH = '../input'
 
-    df = import_data(DATA_PATH)
+    df = import_data(DATA_PATH, 'train')
     df = feat_eng(df)
 
     df_train, df_test = train_test_split(df, test_size=0.2)
@@ -364,7 +368,7 @@ def main(argv):
     opt_round = OptimizedRounder()
 
     opt_round.fit(df_test['lgbm_pred'], df_test['AdoptionSpeed'])
-    df_test['lgbm_opt_pred'] = opt_round.predict(df_test['lgbm_pred'], opt_round.coefficients())
+    df_test['lgbm_opt_pred'] = opt_round.predict(df_test['lgbm_pred'], opt_round.coefficients()).astype(int)
 
     lgbm_kappa = quadratic_weighted_kappa(df_test['AdoptionSpeed'], df_test['lgbm_pred'])
     lgbm_opt_kappa = quadratic_weighted_kappa(df_test['AdoptionSpeed'], df_test['lgbm_opt_pred'])
@@ -374,8 +378,14 @@ def main(argv):
     print('Optimized Model tested! QWK: ' + str(lgbm_opt_kappa))
     print('Optimized Rounding Thresholds Coef: '+str(opt_round.coefficients()))
 
-    df_test[['PetID', 'lgbm_opt_pred']].to_csv('submission.csv', index=False, header=['PetID', 'AdoptionSpeed'])
-
+    print('------- Creating Submission -------')
+    df_submission = import_data(DATA_PATH, 'test')
+    df_submission = feat_eng(df_submission)
+    df_submission['lgbm_pred'] = pred_ensemble(lgbm_list, df_submission[feature_list])
+    df_submission['lgbm_opt_pred'] = opt_round.predict(df_submission['lgbm_pred'], opt_round.coefficients()).astype(int)
+    df_submission[['PetID', 'lgbm_opt_pred']].to_csv('submission.csv', index=False, header=['PetID', 'AdoptionSpeed'])
+    print('------- DONE -------')
 
 if __name__ == '__main__':
-    main(sys.argv[1:])
+    main(sys.argv[1:],'local')
+
