@@ -165,7 +165,6 @@ def import_data(p_data_path, p_mode='train'):
         try:
             with open(p_data_path + '/'+p_mode+'/'+p_mode+'_sentiment/' + pet + '.json', 'r', encoding='UTF-8') as f:
                 sentiment = json.load(f)
-                # print(DATA_PATH+'/train_sentiment/' + pet + '.json')
             sentiment_mag.append(sentiment['documentSentiment']['magnitude'])
             sentiment_score.append(sentiment['documentSentiment']['score'])
         except FileNotFoundError:
@@ -319,8 +318,6 @@ def train_and_run_cv(model, X, y, cv=3):
         cv_score.append(score)
         model_list.append(model_copy)
         print("------- Feature_Importance of model {} -------".format(i))
-        # print(model_copy.feature_importances_)
-        # print(X.columns)
 
         df_import = pd.DataFrame(sorted(list(zip(model_copy.feature_importances_, X.columns)), reverse=True), columns=['Value','Feature'])
 
@@ -355,15 +352,15 @@ def main(argv, mode='local'):
     X = df_train[feature_list]
     y = df_train['AdoptionSpeed'].values
 
-    lgbm = LGBMClassifier(objective='multiclass', random_state=5)
+
+    lgbm = LGBMClassifier(objective='multiclass', num_leaves= 70, max_depth = 9, learning_rate = 0.01,
+                          lambda_l2 = 0.0475, bagging_fraction= 0.85)
 
     lgbm_list, feature_importances  = train_and_run_cv(lgbm, X, y, 5)
 
     # lgbm = do_grid_search(X, y)
 
-    # df_test['lgbm_pred'] = lgbm.predict(df_test[feature_list])
     df_test['lgbm_pred'] = pred_ensemble(lgbm_list, df_test[feature_list])
-    # df_test['lgbm_pred'] = np.round(df_test['lgbm_pred'], 0)
 
     opt_round = OptimizedRounder()
 
@@ -385,6 +382,7 @@ def main(argv, mode='local'):
     df_submission['lgbm_opt_pred'] = opt_round.predict(df_submission['lgbm_pred'], opt_round.coefficients()).astype(int)
     df_submission[['PetID', 'lgbm_opt_pred']].to_csv('submission.csv', index=False, header=['PetID', 'AdoptionSpeed'])
     print('------- DONE -------')
+
 
 if __name__ == '__main__':
     main(sys.argv[1:],'local')
