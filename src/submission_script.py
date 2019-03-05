@@ -354,11 +354,12 @@ def main(argv, mode='local'):
 
 
     lgbm = LGBMClassifier(objective='multiclass', num_leaves= 70, max_depth = 9, learning_rate = 0.01,
-                          lambda_l2 = 0.0475, bagging_fraction= 0.85)
+                          lambda_l2 = 0.0475, bagging_fraction= 0.85, feature_fraction=0.8, min_split_gain=0.2,
+                          min_child_samples=150, min_child_weight=0.02, data_random_seed=17)
 
     lgbm_list, feature_importances  = train_and_run_cv(lgbm, X, y, 5)
 
-    # lgbm = do_grid_search(X, y)
+    #lgbm = do_grid_search(lgbm, X, y)
 
     df_test['lgbm_pred'] = pred_ensemble(lgbm_list, df_test[feature_list])
 
