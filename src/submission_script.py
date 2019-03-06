@@ -155,10 +155,12 @@ def import_data(p_data_path, p_mode='train'):
         :return df Dataframe containing the imported data
     """
     print('Entered import_data with mode '+p_mode)
+    print('Reading csv data...')
 
     df = pd.read_csv(p_data_path + '/'+p_mode+'/'+p_mode+'.csv')
     train_id = df['PetID']
 
+    print('Reading sentiment data...')
     sentiment_mag = []
     sentiment_score = []
     for pet in train_id:
@@ -175,6 +177,8 @@ def import_data(p_data_path, p_mode='train'):
     df.loc[:, 'sentiment_score'] = sentiment_score
 
     df.head()
+
+    print('Reading metadata...')
 
     vertex_xs = []
     vertex_ys = []
