@@ -280,7 +280,9 @@ def description_feat(df):
 
 def do_grid_search(lgbm, X, y):
     grid = {'learning_rate': [0.1, 0.001, 0.003, 0.0005], 'max_bin': [100, 255, 400, 500],
-            'num_iterations': [50, 100, 150, 200, 300, 500]}
+            'num_iterations': [50, 100, 150, 200, 300, 500], 'num_leaves': [50, 75, 100, 200],
+            'reg_alpha': [0, 1e-1, 1, 2, 5, 7, 10, 50, 100], 'reg_lambda': [0, 1e-1, 1, 5, 10, 20, 50, 100]
+    }
 
     kappa_scorer = make_scorer(quadratic_weighted_kappa)
     lgbm_cv = GridSearchCV(lgbm, grid, scoring=kappa_scorer, cv=3, verbose=10)
@@ -356,33 +358,33 @@ def main(argv, mode='local'):
     X = df_train[feature_list]
     y = df_train['AdoptionSpeed'].values
 
-    lgbm = LGBMClassifier(objective = 'multiclass', num_leaves=70, max_bin=400, learning_rate=0.001)
+    lgbm = LGBMClassifier(objective = 'multiclass')
 
     lgbm_list, feature_importances = train_and_run_cv(lgbm, X, y, 5)
 
-    #lgbm = do_grid_search(lgbm, X, y)
+    lgbm = do_grid_search(lgbm, X, y)
 
-    df_test['lgbm_pred'] = pred_ensemble(lgbm_list, df_test[feature_list])
+    #df_test['lgbm_pred'] = pred_ensemble(lgbm_list, df_test[feature_list])
 
-    opt_round = OptimizedRounder()
+    #opt_round = OptimizedRounder()
 
-    opt_round.fit(df_test['lgbm_pred'], df_test['AdoptionSpeed'])
-    df_test['lgbm_opt_pred'] = opt_round.predict(df_test['lgbm_pred'], opt_round.coefficients()).astype(int)
+    #opt_round.fit(df_test['lgbm_pred'], df_test['AdoptionSpeed'])
+    #df_test['lgbm_opt_pred'] = opt_round.predict(df_test['lgbm_pred'], opt_round.coefficients()).astype(int)
 
-    lgbm_kappa = quadratic_weighted_kappa(df_test['AdoptionSpeed'], df_test['lgbm_pred'])
-    lgbm_opt_kappa = quadratic_weighted_kappa(df_test['AdoptionSpeed'], df_test['lgbm_opt_pred'])
+    #lgbm_kappa = quadratic_weighted_kappa(df_test['AdoptionSpeed'], df_test['lgbm_pred'])
+    #lgbm_opt_kappa = quadratic_weighted_kappa(df_test['AdoptionSpeed'], df_test['lgbm_opt_pred'])
 
-    print('------- Ensemble Model vs. Optimized Rounded Ensemble -------')
-    print('Model tested! Quadratic Weighted Kappa: ' + str(lgbm_kappa))
-    print('Optimized Model tested! QWK: ' + str(lgbm_opt_kappa))
-    print('Optimized Rounding Thresholds Coef: '+str(opt_round.coefficients()))
+    #print('------- Ensemble Model vs. Optimized Rounded Ensemble -------')
+    #print('Model tested! Quadratic Weighted Kappa: ' + str(lgbm_kappa))
+    #print('Optimized Model tested! QWK: ' + str(lgbm_opt_kappa))
+    #print('Optimized Rounding Thresholds Coef: '+str(opt_round.coefficients()))
 
-    print('------- Creating Submission -------')
-    df_submission = import_data(DATA_PATH, 'test')
-    df_submission = feat_eng(df_submission)
-    df_submission['lgbm_pred'] = pred_ensemble(lgbm_list, df_submission[feature_list])
-    df_submission['lgbm_opt_pred'] = opt_round.predict(df_submission['lgbm_pred'], opt_round.coefficients()).astype(int)
-    df_submission[['PetID', 'lgbm_opt_pred']].to_csv('submission.csv', index=False, header=['PetID', 'AdoptionSpeed'])
+    #print('------- Creating Submission -------')
+    #df_submission = import_data(DATA_PATH, 'test')
+    #df_submission = feat_eng(df_submission)
+    #df_submission['lgbm_pred'] = pred_ensemble(lgbm_list, df_submission[feature_list])
+    #df_submission['lgbm_opt_pred'] = opt_round.predict(df_submission['lgbm_pred'], opt_round.coefficients()).astype(int)
+    #df_submission[['PetID', 'lgbm_opt_pred']].to_csv('submission.csv', index=False, header=['PetID', 'AdoptionSpeed'])
     print('------- DONE -------')
 
 
