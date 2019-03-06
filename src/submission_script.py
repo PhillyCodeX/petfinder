@@ -9,7 +9,7 @@ import scipy as sp
 
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import make_scorer
-from sklearn.model_selection import GridSearchCV, StratifiedKFold
+from sklearn.model_selection import GridSearchCV, StratifiedKFold, RandomizedSearchCV
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.decomposition import TruncatedSVD
 from sklearn.base import clone
@@ -278,14 +278,19 @@ def description_feat(df):
     return df
 
 
-def do_grid_search(lgbm, X, y):
-    grid = {'learning_rate': [0.1, 0.001, 0.003, 0.0005], 'max_bin': [100, 255, 400, 500],
+def do_hyperparam_search(lgbm, X, y, mode='random', cv=3):
+    param = {'learning_rate': [0.1, 0.001, 0.003, 0.0005], 'max_bin': [100, 255, 400, 500],
             'num_iterations': [50, 100, 150, 200, 300, 500], 'num_leaves': [50, 75, 100, 200],
             'reg_alpha': [0, 1e-1, 1, 2, 5, 7, 10, 50, 100], 'reg_lambda': [0, 1e-1, 1, 5, 10, 20, 50, 100]
     }
 
     kappa_scorer = make_scorer(quadratic_weighted_kappa)
-    lgbm_cv = GridSearchCV(lgbm, grid, scoring=kappa_scorer, cv=3, verbose=10)
+
+    if mode == 'random':
+        lgbm_cv = RandomizedSearchCV(lgbm, param, scoring=kappa_scorer, cv=cv, verbose=10, n_iter=100, n_jobs=1)
+    elif mode == 'grid':
+        lgbm_cv = GridSearchCV(lgbm, param, scoring=kappa_scorer, cv=cv, verbose=10)
+
     lgbm_cv.fit(X, y)
 
     print("tuned hyperparameters :(best parameters) ", lgbm_cv.best_params_)
@@ -360,9 +365,11 @@ def main(argv, mode='local'):
 
     lgbm = LGBMClassifier(objective = 'multiclass')
 
-    lgbm_list, feature_importances = train_and_run_cv(lgbm, X, y, 5)
+    cv = 5
 
-    lgbm = do_grid_search(lgbm, X, y)
+    lgbm_list, feature_importances = train_and_run_cv(lgbm, X, y, cv)
+
+    lgbm = do_hyperparam_search(lgbm, X, y, 'random', cv)
 
     #df_test['lgbm_pred'] = pred_ensemble(lgbm_list, df_test[feature_list])
 
