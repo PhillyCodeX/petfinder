@@ -111,6 +111,3 @@ venv.bak/
 
 # Kaggle submissions
 submission.csv
-
-# Spell
-spellrun.sh
