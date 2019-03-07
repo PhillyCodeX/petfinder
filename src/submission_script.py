@@ -336,7 +336,7 @@ def pred_ensemble(model_list, X):
         pred = model.predict(X)
         pred_full += pred
 
-    return np.rint(pred_full / len(model_list))
+    return pred_full / len(model_list)
 
 
 def train_and_run_cv(model, X, y, cv=3):
@@ -421,8 +421,9 @@ def main(argv, mode='local'):
     print('------- Creating Submission -------')
     df_submission = import_data(DATA_PATH, 'test')
     df_submission = feat_eng(df_submission)
-    df_submission['lgbm_pred'] = pred_ensemble(lgbm_list, df_submission[feature_list])
-    df_submission['lgbm_opt_pred'] = opt_round.predict(df_submission['lgbm_pred'], opt_round.coefficients()).astype(int)
+    df_submission['lgbm_opt_pred_input'] = pred_ensemble(lgbm_list, df_submission[feature_list])
+    df_submission['lgbm_opt_pred'] = opt_round.predict(df_submission['lgbm_opt_pred_input'], opt_round.coefficients()).astype(int)
+    df_submission['lgbm_pred'] = np.rint(df_submission['lgbm_opt_pred_input']).astype(int)
     df_submission[['PetID', 'lgbm_pred']].to_csv('submission.csv', index=False, header=['PetID', 'AdoptionSpeed'])
     print('------- DONE -------')
 
