@@ -287,8 +287,11 @@ def description_feat(df):
 
 
 def do_hyperparam_search(lgbm, X, y, mode='random', cv=3):
-    '''
+    """
     Function to execute a hyperparam search via either random or grid
+
+    Last best param combination (after 500: {'reg_lambda': 0.1, 'reg_alpha': 2, 'num_leaves': 75, 'num_iterations': 300,
+     'max_bin': 400, 'learning_rate': 0.1})
 
     :param lgbm: base model given by main
     :param X: feature space
@@ -296,8 +299,10 @@ def do_hyperparam_search(lgbm, X, y, mode='random', cv=3):
     :param mode: random or grid depending on whether you want a grid search or random search hyperparameter tuning
     :param cv: number of cv
     :return: trained and searched model
-    '''
-    param = {'learning_rate': [0.1, 0.001, 0.003, 0.0005], 'max_bin': [100, 255, 400, 500],
+    """
+
+    param = {
+            'learning_rate': [0.1, 0.001, 0.003, 0.0005], 'max_bin': [100, 255, 400, 500],
             'num_iterations': [50, 100, 150, 200, 300, 500], 'num_leaves': [50, 75, 100, 200],
             'reg_alpha': [0, 1e-1, 1, 2, 5, 7, 10, 50, 100], 'reg_lambda': [0, 1e-1, 1, 5, 10, 20, 50, 100]
     }
@@ -318,12 +323,20 @@ def do_hyperparam_search(lgbm, X, y, mode='random', cv=3):
 
 
 def pred_ensemble(model_list, X):
+    """
+    create weighted ensemble model based on given model list and feature space
+
+    :param model_list: list of models to predict with and ensemble
+    :param X: feature space for prediction
+    :return: return ensembled predictions
+    """
+
     pred_full = 0
     for model in model_list:
         pred = model.predict(X)
         pred_full += pred
 
-    return pred_full / len(model_list)
+    return np.rint(pred_full / len(model_list))
 
 
 def train_and_run_cv(model, X, y, cv=3):
@@ -381,9 +394,10 @@ def main(argv, mode='local'):
     X = df_train[feature_list]
     y = df_train['AdoptionSpeed'].values
 
-    lgbm = LGBMClassifier(objective = 'multiclass')
+    lgbm = LGBMClassifier(objective='multiclass', reg_lambda=0.1, reg_alpha=2, num_leaves=75,
+        num_iterations=300, max_bin=400, learning_rate=0.1)
 
-    cv = 5
+    cv = 3
 
     lgbm_list, feature_importances = train_and_run_cv(lgbm, X, y, cv)
 
@@ -409,7 +423,7 @@ def main(argv, mode='local'):
     df_submission = feat_eng(df_submission)
     df_submission['lgbm_pred'] = pred_ensemble(lgbm_list, df_submission[feature_list])
     df_submission['lgbm_opt_pred'] = opt_round.predict(df_submission['lgbm_pred'], opt_round.coefficients()).astype(int)
-    df_submission[['PetID', 'lgbm_opt_pred']].to_csv('submission.csv', index=False, header=['PetID', 'AdoptionSpeed'])
+    df_submission[['PetID', 'lgbm_pred']].to_csv('submission.csv', index=False, header=['PetID', 'AdoptionSpeed'])
     print('------- DONE -------')
 
 
