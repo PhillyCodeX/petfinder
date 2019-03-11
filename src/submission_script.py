@@ -261,12 +261,18 @@ def import_data(p_data_path, p_mode='train'):
 def feat_eng(df):
     print('Entered feat_eng')
 
-    df = description_feat(df)
+    df = description_sent_feat(df)
+    df = name_no_name_feat(df)
 
     return df
 
+def name_no_name_feat(df):
+    df['Name'] = df['Name'].fillna('No Name')
+    df['NameExisting'] = np.where(df['Name'] == 'No Name', 0, 1)
 
-def description_feat(df):
+    return df
+
+def description_sent_feat(df):
     print('------- Build Description features -------')
     print('Vectorize Descriptions')
     descriptions = df.Description.fillna("no_desc").values
