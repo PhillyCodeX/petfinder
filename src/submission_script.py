@@ -166,6 +166,8 @@ def import_data(p_data_path, p_mode='train'):
     print('Reading csv data...')
 
     df = pd.read_csv(p_data_path + '/'+p_mode+'/'+p_mode+'.csv')
+    df['Name'] = df['Name'].fillna('No Name')
+
     train_id = df['PetID']
 
     print('Reading sentiment data...')
@@ -263,17 +265,33 @@ def feat_eng(df):
 
     df = description_sent_feat(df)
     df = name_no_name_feat(df)
+    df = field_length_feat(df)
 
     return df
 
+
+def field_length_feat(df):
+    df['NameLength'] = np.where(df['Name'] == 'No Name', 0, df['Name'].apply(len))
+    df['DescriptionLength'] = df['Description'].astype('str').apply(len)
+
+    return df
+
+
 def name_no_name_feat(df):
-    df['Name'] = df['Name'].fillna('No Name')
+    """
+    Create Feature that has 0 when there is no name and 1 when a name is existing.
+
+    :param df: Feature Space that needs to be extended
+    :return: df: Extended Feature Space. The Feature is called "NameExisting"
+    """
+
     df['NameExisting'] = np.where(df['Name'] == 'No Name', 0, 1)
 
     return df
 
+
 def description_sent_feat(df):
-    print('------- Build Description features -------')
+    print('------- Build Description Sentiment features -------')
     print('Vectorize Descriptions')
     descriptions = df.Description.fillna("no_desc").values
     vectorizer = TfidfVectorizer(strip_accents='unicode', analyzer='word', token_pattern=r'(?u)\b\w+\b', use_idf=True)
@@ -402,6 +420,8 @@ def main(argv, mode='local'):
 
     lgbm = LGBMClassifier(objective='multiclass', reg_lambda=0.1, reg_alpha=2, num_leaves=75,
         num_iterations=300, max_bin=400, learning_rate=0.1)
+
+    #lgbm = LGBMClassifier(objective='multiclass')
 
     cv = 3
 
