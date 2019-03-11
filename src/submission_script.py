@@ -16,7 +16,7 @@ from sklearn.base import clone
 
 from functools import partial
 
-from lightgbm import LGBMClassifier
+from lightgbm import LGBMClassifier, LGBMRegressor
 
 pd.options.mode.chained_assignment = None  # default='warn'
 
@@ -363,8 +363,8 @@ def pred_ensemble(model_list, X):
     return pred_full / len(model_list)
 
 
-def train_and_run_cv(model, X, y, cv=3):
-    print('Entered train_and_run_cv')
+def train_and_run_cv(modelName, model, X, y, cv=3):
+    print('Entered train_and_run_cv for', modelName)
     skf = StratifiedKFold(n_splits=cv)
     i = 0
     cv_score = []
@@ -418,18 +418,23 @@ def main(argv, mode='local'):
     X = df_train[feature_list]
     y = df_train['AdoptionSpeed'].values
 
-    lgbm = LGBMClassifier(objective='multiclass', reg_lambda=0.1, reg_alpha=2, num_leaves=75,
-        num_iterations=300, max_bin=400, learning_rate=0.1)
+    #lgbm_classifier = LGBMClassifier(objective='multiclass', reg_lambda=0.1, reg_alpha=2, num_leaves=75,
+    #   num_iterations=300, max_bin=400, learning_rate=0.1)
 
-    #lgbm = LGBMClassifier(objective='multiclass')
+    lgbm_regressor = LGBMRegressor()
+
+    lgbm_classifier = LGBMClassifier(objective='multiclass')
 
     cv = 3
 
-    lgbm_list, feature_importances = train_and_run_cv(lgbm, X, y, cv)
+    lgbm_classifier_list, lgbm_class_feature_importances = train_and_run_cv('LGBMClassifier', lgbm_classifier, X, y, cv)
+    lgbm_regressor_list, lgbm_regr_feature_importances = train_and_run_cv('LGBMRegressor', lgbm_regressor, X, y, cv)
 
-    #lgbm = do_hyperparam_search(lgbm, X, y, 'random', cv)
+    lgbm_regressor = do_hyperparam_search(lgbm_regressor, X, y, 'random', cv)
 
-    df_test['lgbm_pred'] = pred_ensemble(lgbm_list, df_test[feature_list])
+    model_list_to_ensemble = lgbm_regressor_list+lgbm_classifier_list
+
+    df_test['lgbm_pred'] = pred_ensemble(model_list_to_ensemble, df_test[feature_list])
 
     opt_round = OptimizedRounder()
 
@@ -447,7 +452,7 @@ def main(argv, mode='local'):
     print('------- Creating Submission -------')
     df_submission = import_data(DATA_PATH, 'test')
     df_submission = feat_eng(df_submission)
-    df_submission['lgbm_opt_pred_input'] = pred_ensemble(lgbm_list, df_submission[feature_list])
+    df_submission['lgbm_opt_pred_input'] = pred_ensemble(model_list_to_ensemble, df_submission[feature_list])
     df_submission['lgbm_opt_pred'] = opt_round.predict(df_submission['lgbm_opt_pred_input'], opt_round.coefficients()).astype(int)
     df_submission['lgbm_pred'] = np.rint(df_submission['lgbm_opt_pred_input']).astype(int)
     df_submission[['PetID', 'lgbm_pred']].to_csv('submission.csv', index=False, header=['PetID', 'AdoptionSpeed'])
