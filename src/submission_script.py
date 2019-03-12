@@ -177,6 +177,17 @@ def import_data(p_data_path, p_mode='train'):
     df = pd.merge(df,df_breed_labels, left_on=['Breed1','Type'], right_on=['BreedID','Type'], how='left')
     df = pd.merge(df, df_breed_labels, left_on=['Breed2', 'Type'], right_on=['BreedID', 'Type'], how='left', suffixes=('_main_breed','_second_breed'))
     df = df.drop(['Breed1', 'Breed2', 'BreedID_main_breed', 'BreedID_second_breed'], axis=1)
+    df = df.rename(columns={'BreedName_main_breed': 'PrimaryBreed', 'BreedName_second_breed': 'SecondaryBreed'})
+
+    df_color_labels = pd.read_csv(p_data_path + '/'+'color_labels.csv')
+    df = pd.merge(df, df_color_labels, left_on=['Color1'], right_on=['ColorID'], how='left', suffixes=('_1x','_1x'))
+    df = pd.merge(df, df_color_labels, left_on=['Color2'], right_on=['ColorID'], how='left', suffixes=('_2x','_2y'))
+    df = pd.merge(df, df_color_labels, left_on=['Color3'], right_on=['ColorID'], how='left', suffixes=('_3x','_3y'))
+    df = df.drop(['ColorID_2x', 'ColorID_2y', 'ColorID', 'Color1', 'Color2', 'Color3'], axis=1)
+    df = df.rename(columns={'ColorName_2x': 'Color1', 'ColorName_2y': 'Color2', 'ColorName': 'Color3'})
+
+    with pd.option_context('display.max_rows', None, 'display.max_columns', None):
+        print(df.head())
 
     print('Reading sentiment data...')
     sentiment_mag = []
