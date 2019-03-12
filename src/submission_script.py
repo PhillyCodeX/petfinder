@@ -8,8 +8,8 @@ import numpy as np
 import scipy as sp
 
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import make_scorer
-from sklearn.model_selection import GridSearchCV, StratifiedKFold, RandomizedSearchCV
+from sklearn.metrics import make_scorer, mean_squared_error
+from sklearn.model_selection import GridSearchCV, StratifiedKFold, RandomizedSearchCV, KFold
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.decomposition import TruncatedSVD
 from sklearn.base import clone
@@ -17,6 +17,8 @@ from sklearn.base import clone
 from functools import partial
 
 from lightgbm import LGBMClassifier, LGBMRegressor
+
+from math import sqrt
 
 pd.options.mode.chained_assignment = None  # default='warn'
 
@@ -365,9 +367,10 @@ def pred_ensemble(model_list, X):
 
 def train_and_run_cv(modelName, model, X, y, cv=3):
     print('Entered train_and_run_cv for', modelName)
-    skf = StratifiedKFold(n_splits=cv)
+    skf = KFold(n_splits=cv)
     i = 0
-    cv_score = []
+    qwk_score = []
+    rmse_score = []
     model_list = []
     feature_importances = []
 
@@ -379,9 +382,13 @@ def train_and_run_cv(modelName, model, X, y, cv=3):
 
         model_copy = clone(model)
         model_copy.fit(X_train, y_train)
-        score = quadratic_weighted_kappa(y_test, model_copy.predict(X_test))
-        print("Model {} Score: ".format(score))
-        cv_score.append(score)
+        pred = model_copy.predict(X_test)
+        qwk = quadratic_weighted_kappa(y_test, pred)
+        rmse = sqrt(mean_squared_error(y_test, pred))
+
+        print("Model QWK {} RMSE {} ".format(qwk, rmse))
+        qwk_score.append(qwk)
+        rmse_score.append(rmse)
         model_list.append(model_copy)
         print("------- Feature_Importance of model {} -------".format(i))
 
@@ -390,7 +397,8 @@ def train_and_run_cv(modelName, model, X, y, cv=3):
         print(df_import.head(15))
 
     print("------- Ensemble metrics ------- ")
-    print("Mean cv Score", np.mean(cv_score))
+    print("Mean QWK", np.mean(qwk_score))
+    print("Mean RMSE", np.mean(rmse_score))
 
     return model_list, feature_importances
 
@@ -418,19 +426,20 @@ def main(argv, mode='local'):
     X = df_train[feature_list]
     y = df_train['AdoptionSpeed'].values
 
-    #lgbm_classifier = LGBMClassifier(objective='multiclass', reg_lambda=0.1, reg_alpha=2, num_leaves=75,
-    #   num_iterations=300, max_bin=400, learning_rate=0.1)
 
-    lgbm_regressor = LGBMRegressor()
 
-    lgbm_classifier = LGBMClassifier(objective='multiclass')
+    lgbm_regressor = LGBMRegressor(metric='rmse')
+    lgbm_classifier = LGBMClassifier(objective='multiclass', reg_lambda=0.1, reg_alpha=2, num_leaves=75,
+                                     num_iterations=300, max_bin=400, learning_rate=0.1)
+
+    #lgbm_classifier = LGBMClassifier(objective='multiclass')
 
     cv = 3
 
-    lgbm_classifier_list, lgbm_class_feature_importances = train_and_run_cv('LGBMClassifier', lgbm_classifier, X, y, cv)
     lgbm_regressor_list, lgbm_regr_feature_importances = train_and_run_cv('LGBMRegressor', lgbm_regressor, X, y, cv)
+    lgbm_classifier_list, lgbm_class_feature_importances = train_and_run_cv('LGBMClassifier', lgbm_classifier, X, y, cv)
 
-    lgbm_regressor = do_hyperparam_search(lgbm_regressor, X, y, 'random', cv)
+    #lgbm_regressor = do_hyperparam_search(lgbm_regressor, X, y, 'random', cv)
 
     model_list_to_ensemble = lgbm_regressor_list+lgbm_classifier_list
 
