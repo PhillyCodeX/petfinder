@@ -172,6 +172,12 @@ def import_data(p_data_path, p_mode='train'):
 
     train_id = df['PetID']
 
+    print('Reading Labels for Keys')
+    df_breed_labels = pd.read_csv(p_data_path + '/'+'breed_labels.csv')
+    df = pd.merge(df,df_breed_labels, left_on=['Breed1','Type'], right_on=['BreedID','Type'], how='left')
+    df = pd.merge(df, df_breed_labels, left_on=['Breed2', 'Type'], right_on=['BreedID', 'Type'], how='left', suffixes=('_main_breed','_second_breed'))
+    df = df.drop(['Breed1', 'Breed2', 'BreedID_main_breed', 'BreedID_second_breed'], axis=1)
+
     print('Reading sentiment data...')
     sentiment_mag = []
     sentiment_score = []
@@ -425,8 +431,6 @@ def main(argv, mode='local'):
 
     X = df_train[feature_list]
     y = df_train['AdoptionSpeed'].values
-
-
 
     lgbm_regressor = LGBMRegressor(metric='rmse')
     lgbm_classifier = LGBMClassifier(objective='multiclass', reg_lambda=0.1, reg_alpha=2, num_leaves=75,
