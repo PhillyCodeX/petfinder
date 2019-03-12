@@ -173,21 +173,18 @@ def import_data(p_data_path, p_mode='train'):
     train_id = df['PetID']
 
     print('Reading Labels for Keys')
-    df_breed_labels = pd.read_csv(p_data_path + '/'+'breed_labels.csv')
-    df = pd.merge(df,df_breed_labels, left_on=['Breed1','Type'], right_on=['BreedID','Type'], how='left')
-    df = pd.merge(df, df_breed_labels, left_on=['Breed2', 'Type'], right_on=['BreedID', 'Type'], how='left', suffixes=('_main_breed','_second_breed'))
-    df = df.drop(['Breed1', 'Breed2', 'BreedID_main_breed', 'BreedID_second_breed'], axis=1)
-    df = df.rename(columns={'BreedName_main_breed': 'PrimaryBreed', 'BreedName_second_breed': 'SecondaryBreed'})
+    #df_breed_labels = pd.read_csv(p_data_path + '/'+'breed_labels.csv')
+    #df = pd.merge(df,df_breed_labels, left_on=['Breed1','Type'], right_on=['BreedID','Type'], how='left')
+    #df = pd.merge(df, df_breed_labels, left_on=['Breed2', 'Type'], right_on=['BreedID', 'Type'], how='left', suffixes=('_main_breed','_second_breed'))
+    #df = df.drop(['Breed1', 'Breed2', 'BreedID_main_breed', 'BreedID_second_breed'], axis=1)
+    #df = df.rename(columns={'BreedName_main_breed': 'PrimaryBreed', 'BreedName_second_breed': 'SecondaryBreed'})
 
-    df_color_labels = pd.read_csv(p_data_path + '/'+'color_labels.csv')
-    df = pd.merge(df, df_color_labels, left_on=['Color1'], right_on=['ColorID'], how='left', suffixes=('_1x','_1x'))
-    df = pd.merge(df, df_color_labels, left_on=['Color2'], right_on=['ColorID'], how='left', suffixes=('_2x','_2y'))
-    df = pd.merge(df, df_color_labels, left_on=['Color3'], right_on=['ColorID'], how='left', suffixes=('_3x','_3y'))
-    df = df.drop(['ColorID_2x', 'ColorID_2y', 'ColorID', 'Color1', 'Color2', 'Color3'], axis=1)
-    df = df.rename(columns={'ColorName_2x': 'Color1', 'ColorName_2y': 'Color2', 'ColorName': 'Color3'})
-
-    with pd.option_context('display.max_rows', None, 'display.max_columns', None):
-        print(df.head())
+    #df_color_labels = pd.read_csv(p_data_path + '/'+'color_labels.csv')
+    #df = pd.merge(df, df_color_labels, left_on=['Color1'], right_on=['ColorID'], how='left', suffixes=('_1x','_1x'))
+    #df = pd.merge(df, df_color_labels, left_on=['Color2'], right_on=['ColorID'], how='left', suffixes=('_2x','_2y'))
+    #df = pd.merge(df, df_color_labels, left_on=['Color3'], right_on=['ColorID'], how='left', suffixes=('_3x','_3y'))
+    #df = df.drop(['ColorID_2x', 'ColorID_2y', 'ColorID', 'Color1', 'Color2', 'Color3'], axis=1)
+    #df = df.rename(columns={'ColorName_2x': 'Color1', 'ColorName_2y': 'Color2', 'ColorName': 'Color3'})
 
     print('Reading sentiment data...')
     sentiment_mag = []
@@ -382,7 +379,7 @@ def pred_ensemble(model_list, X):
     return pred_full / len(model_list)
 
 
-def train_and_run_cv(modelName, model, X, y, cv=3):
+def train_and_run_cv(modelName, model, X, y, feature_list, cat_features, cv=3):
     print('Entered train_and_run_cv for', modelName)
     skf = KFold(n_splits=cv)
     i = 0
@@ -398,7 +395,7 @@ def train_and_run_cv(modelName, model, X, y, cv=3):
         y_train, y_test = np.array(y)[train_index], np.array(y)[test_index]
 
         model_copy = clone(model)
-        model_copy.fit(X_train, y_train)
+        model_copy.fit(X_train, y_train, categorical_feature=cat_features, feature_name=feature_list)
         pred = model_copy.predict(X_test)
         qwk = quadratic_weighted_kappa(y_test, pred)
         rmse = sqrt(mean_squared_error(y_test, pred))
@@ -443,16 +440,17 @@ def main(argv, mode='local'):
     X = df_train[feature_list]
     y = df_train['AdoptionSpeed'].values
 
+    cat_features = ['Breed1', 'Breed2', 'Color1', 'Color2', 'Color3']
     lgbm_regressor = LGBMRegressor(metric='rmse')
-    lgbm_classifier = LGBMClassifier(objective='multiclass', reg_lambda=0.1, reg_alpha=2, num_leaves=75,
-                                     num_iterations=300, max_bin=400, learning_rate=0.1)
+    #lgbm_classifier = LGBMClassifier(objective='multiclass', reg_lambda=0.1, reg_alpha=2, num_leaves=75,
+     #                                num_iterations=300, max_bin=400, learning_rate=0.1)
 
-    #lgbm_classifier = LGBMClassifier(objective='multiclass')
+    lgbm_classifier = LGBMClassifier(objective='multiclass')
 
     cv = 3
 
-    lgbm_regressor_list, lgbm_regr_feature_importances = train_and_run_cv('LGBMRegressor', lgbm_regressor, X, y, cv)
-    lgbm_classifier_list, lgbm_class_feature_importances = train_and_run_cv('LGBMClassifier', lgbm_classifier, X, y, cv)
+    lgbm_regressor_list, lgbm_regr_feature_importances = train_and_run_cv('LGBMRegressor', lgbm_regressor, X, y, feature_list,cat_features, cv )
+    lgbm_classifier_list, lgbm_class_feature_importances = train_and_run_cv('LGBMClassifier', lgbm_classifier, X, y, feature_list, cat_features, cv )
 
     #lgbm_regressor = do_hyperparam_search(lgbm_regressor, X, y, 'random', cv)
 
