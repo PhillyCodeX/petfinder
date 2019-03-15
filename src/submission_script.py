@@ -173,11 +173,11 @@ def import_data(p_data_path, p_mode='train'):
     train_id = df['PetID']
 
     print('Reading Labels for Keys')
-    #df_breed_labels = pd.read_csv(p_data_path + '/'+'breed_labels.csv')
-    #df = pd.merge(df,df_breed_labels, left_on=['Breed1','Type'], right_on=['BreedID','Type'], how='left')
-    #df = pd.merge(df, df_breed_labels, left_on=['Breed2', 'Type'], right_on=['BreedID', 'Type'], how='left', suffixes=('_main_breed','_second_breed'))
-    #df = df.drop(['Breed1', 'Breed2', 'BreedID_main_breed', 'BreedID_second_breed'], axis=1)
-    #df = df.rename(columns={'BreedName_main_breed': 'PrimaryBreed', 'BreedName_second_breed': 'SecondaryBreed'})
+    df_breed_labels = pd.read_csv(p_data_path + '/'+'breed_labels.csv')
+    df = pd.merge(df,df_breed_labels, left_on=['Breed1','Type'], right_on=['BreedID','Type'], how='left')
+    df = pd.merge(df, df_breed_labels, left_on=['Breed2', 'Type'], right_on=['BreedID', 'Type'], how='left', suffixes=('_main_breed','_second_breed'))
+    df = df.drop(['Breed1', 'Breed2', 'BreedID_main_breed', 'BreedID_second_breed'], axis=1)
+    df = df.rename(columns={'BreedName_main_breed': 'PrimaryBreed', 'BreedName_second_breed': 'SecondaryBreed'})
 
     #df_color_labels = pd.read_csv(p_data_path + '/'+'color_labels.csv')
     #df = pd.merge(df, df_color_labels, left_on=['Color1'], right_on=['ColorID'], how='left', suffixes=('_1x','_1x'))
@@ -282,11 +282,24 @@ def feat_eng(df):
     df = description_sent_feat(df)
     df = name_no_name_feat(df)
     df = field_length_feat(df)
+    df = breed_feat(df)
+
+    return df
+
+
+def breed_feat(df):
+    print('Entered breed_feat')
+
+    df['PrimeBreedCategory'] = pd.factorize(df['PrimaryBreed'])[0]
+    df['SecondBreedCategory'] = pd.factorize(df['SecondaryBreed'])[0]
+    df = df.drop(['PrimaryBreed', 'SecondaryBreed'], axis=1)
 
     return df
 
 
 def field_length_feat(df):
+    print('Entered field_length_feat')
+
     df['NameLength'] = np.where(df['Name'] == 'No Name', 0, df['Name'].apply(len))
     df['DescriptionLength'] = df['Description'].astype('str').apply(len)
 
@@ -300,6 +313,7 @@ def name_no_name_feat(df):
     :param df: Feature Space that needs to be extended
     :return: df: Extended Feature Space. The Feature is called "NameExisting"
     """
+    print('Entered name_no_name_feat')
 
     df['NameExisting'] = np.where(df['Name'] == 'No Name', 0, 1)
 
@@ -442,7 +456,7 @@ def main(argv, mode='local'):
     X = df_train[feature_list]
     y = df_train['AdoptionSpeed'].values
 
-    cat_features = ['Breed1', 'Breed2', 'Color1', 'Color2', 'Color3']
+    cat_features = ['PrimeBreedCategory', 'SecondBreedCategory', 'Color1', 'Color2', 'Color3']
 
     cv = 3
 
