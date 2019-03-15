@@ -421,6 +421,8 @@ def main(argv, mode='local'):
     """
     Diese Funktion ist der Einstiegspunkt für dieses Projekt
     """
+    lgbm_regressor = LGBMRegressor(metric='rmse')
+    lgbm_classifier = LGBMClassifier(objective='multiclass')
 
     if mode == 'local':
         DATA_PATH = argv[0]
@@ -441,11 +443,6 @@ def main(argv, mode='local'):
     y = df_train['AdoptionSpeed'].values
 
     cat_features = ['Breed1', 'Breed2', 'Color1', 'Color2', 'Color3']
-    lgbm_regressor = LGBMRegressor(metric='rmse')
-    #lgbm_classifier = LGBMClassifier(objective='multiclass', reg_lambda=0.1, reg_alpha=2, num_leaves=75,
-     #                                num_iterations=300, max_bin=400, learning_rate=0.1)
-
-    lgbm_classifier = LGBMClassifier(objective='multiclass')
 
     cv = 3
 
@@ -477,7 +474,7 @@ def main(argv, mode='local'):
     df_submission['lgbm_opt_pred_input'] = pred_ensemble(model_list_to_ensemble, df_submission[feature_list])
     df_submission['lgbm_opt_pred'] = opt_round.predict(df_submission['lgbm_opt_pred_input'], opt_round.coefficients()).astype(int)
     df_submission['lgbm_pred'] = np.rint(df_submission['lgbm_opt_pred_input']).astype(int)
-    df_submission[['PetID', 'lgbm_pred']].to_csv('submission.csv', index=False, header=['PetID', 'AdoptionSpeed'])
+    df_submission[['PetID', 'lgbm_opt_pred']].to_csv('submission.csv', index=False, header=['PetID', 'AdoptionSpeed'])
     print('------- DONE -------')
 
 
