@@ -313,8 +313,16 @@ def description_sent_feat(df):
     vectorizer = TfidfVectorizer(strip_accents='unicode', analyzer='word', token_pattern=r'(?u)\b\w+\b', use_idf=True)
     X = vectorizer.fit_transform(list(descriptions))
     print('X:', X.shape)
+    X = X.toarray()
+    X = pd.DataFrame(X, columns=['token_{}'.format(i) for i in range(0,X.shape[1])])
+    df = pd.concat((df, X), axis=1)
 
+    return df
+
+def do_svd(df):
     print('SVD to reduce dimensionality')
+    drop_cols = [col for col in df.columns if 'token' in col]
+    X = df.filter(like = "token", axis=1)
     svd = TruncatedSVD(n_components=300)
     svd.fit(X)
     X = svd.transform(X)
@@ -322,9 +330,9 @@ def description_sent_feat(df):
     print('X:', X.shape)
 
     X = pd.DataFrame(X, columns=['svd_{}'.format(i) for i in range(300)])
-    df = pd.concat((df, X), axis=1)
+    df = pd.concat((df.reset_index(drop=True), X.reset_index(drop=True)), axis=1)
+    df = df.drop(drop_cols,axis = 1)
     return df
-
 
 def do_hyperparam_search(lgbm, X, y, mode='random', cv=3):
     """
@@ -387,15 +395,23 @@ def train_and_run_cv(modelName, model, X, y, feature_list, cat_features, cv=3):
     rmse_score = []
     model_list = []
     feature_importances = []
+    df_cols = X.columns
 
     for train_index, test_index in skf.split(X, y):
         i += 1
         print("-------------- training fold {} of {} --------------".format(i, cv))
         X_train, X_test = np.array(X)[train_index, :], np.array(X)[test_index, :]
+        X_train = pd.DataFrame(X_train, columns=df_cols)
+        X_test = pd.DataFrame(X_test, columns=df_cols)
+
         y_train, y_test = np.array(y)[train_index], np.array(y)[test_index]
+        X_train, X_test = do_svd(X_train), do_svd(X_test)
+
+        filtered_feature_list = [col for col in X_train.columns if
+                                 not 'token' in col and (col in feature_list or 'svd' in col)]
 
         model_copy = clone(model)
-        model_copy.fit(X_train, y_train, categorical_feature=cat_features, feature_name=feature_list)
+        model_copy.fit(X_train, y_train, categorical_feature=cat_features, feature_name=filtered_feature_list)
         pred = model_copy.predict(X_test)
         qwk = quadratic_weighted_kappa(y_test, pred)
         rmse = sqrt(mean_squared_error(y_test, pred))
@@ -406,7 +422,7 @@ def train_and_run_cv(modelName, model, X, y, feature_list, cat_features, cv=3):
         model_list.append(model_copy)
         print("------- Feature_Importance of model {} -------".format(i))
 
-        df_import = pd.DataFrame(sorted(list(zip(model_copy.feature_importances_, X.columns)), reverse=True), columns=['Value','Feature'])
+        df_import = pd.DataFrame(sorted(list(zip(model_copy.feature_importances_, X_train.columns)), reverse=True), columns=['Value','Feature'])
 
         print(df_import.head(15))
 
@@ -456,6 +472,11 @@ def main(argv, mode='local'):
 
     model_list_to_ensemble = lgbm_regressor_list+lgbm_classifier_list
 
+    df_test = do_svd(df_test)
+
+    feature_list = [col for col in df_test.columns if
+                             not 'token' in col and (col in feature_list or 'svd' in col)]
+
     df_test['lgbm_pred'] = pred_ensemble(model_list_to_ensemble, df_test[feature_list])
 
     opt_round = OptimizedRounder()
@@ -474,6 +495,9 @@ def main(argv, mode='local'):
     print('------- Creating Submission -------')
     df_submission = import_data(DATA_PATH, 'test')
     df_submission = feat_eng(df_submission)
+    df_submission = do_svd(df_submission)
+
+
     df_submission['lgbm_opt_pred_input'] = pred_ensemble(model_list_to_ensemble, df_submission[feature_list])
     df_submission['lgbm_opt_pred'] = opt_round.predict(df_submission['lgbm_opt_pred_input'], opt_round.coefficients()).astype(int)
     df_submission['lgbm_pred'] = np.rint(df_submission['lgbm_opt_pred_input']).astype(int)
