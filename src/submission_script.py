@@ -283,9 +283,14 @@ def feat_eng(df):
     df = name_no_name_feat(df)
     df = field_length_feat(df)
     df = breed_feat(df)
+    df = feat_group_fg(df)
 
     return df
 
+def feat_group_fg(df):
+    print('Entered Group FG')
+    df['GroupFG'] = np.where(df['Gender'] == 3, 1,0)
+    return df
 
 def breed_feat(df):
     print('Entered breed_feat')
@@ -472,7 +477,7 @@ def main(argv, mode='local'):
     X = df_train[feature_list]
     y = df_train['AdoptionSpeed'].values
 
-    cat_features = ['PrimeBreedCategory', 'SecondBreedCategory', 'Color1', 'Color2', 'Color3']
+    cat_features = ['PrimeBreedCategory', 'SecondBreedCategory', 'Color1', 'Color2', 'Color3','GroupFG','Gender']
 
     cv = 3
 
